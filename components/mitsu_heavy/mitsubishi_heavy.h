@@ -1,46 +1,34 @@
 #pragma once
 
 #include "esphome/components/climate_ir/climate_ir.h"
-#include "esphome/components/remote_transmitter/remote_transmitter.h"
 
 namespace esphome {
-namespace mitsubishi_heavy {
+    namespace mhi_zj {
+        // Temperature
+        const uint8_t MHI_TEMP_MIN = 18; // Celsius
+        const uint8_t MHI_TEMP_MAX = 30; // Celsius
 
-enum MitsubishiModel {
-  MODEL_ZJ,
-  MODEL_ZM,
-  MODEL_ZMP
-};
+        class MhiClimate : public climate_ir::ClimateIR {
+            public:
+                MhiClimate() : climate_ir::ClimateIR(
+                    MHI_TEMP_MIN, MHI_TEMP_MAX, 1.0f, true, true,
+                    std::set<climate::ClimateFanMode>{
+                        climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW,
+                        climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH,
+                        climate::CLIMATE_FAN_MIDDLE, climate::CLIMATE_FAN_FOCUS,
+                        climate::CLIMATE_FAN_DIFFUSE
+                    },
+                    std::set<climate::ClimateSwingMode>{
+                        climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
+                        climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH
+                    }
+                ) {}
 
-class MitsubishiHeavyClimate : public climate_ir::ClimateIR {
- public:
-  MitsubishiHeavyClimate()
-      : climate_ir::ClimateIR(
-            16.0f, 30.0f, 1.0f,  // Min, max, step
-            true, true,          // supports_dry, supports_fan_only
-            {
-              climate::CLIMATE_FAN_LOW,
-              climate::CLIMATE_FAN_MEDIUM,
-              climate::CLIMATE_FAN_HIGH,
-              climate::CLIMATE_FAN_AUTO
-            },
-            {
-              climate::CLIMATE_SWING_VERTICAL,
-              climate::CLIMATE_SWING_HORIZONTAL,
-              climate::CLIMATE_SWING_BOTH
-            },
-            {
-              climate::CLIMATE_PRESET_NONE,
-              climate::CLIMATE_PRESET_SLEEP,
-              climate::CLIMATE_PRESET_ECO
-            }) {}
+            protected:
+                void transmit_state() override;
+                /// Handle received IR Buffer
+                bool on_receive(remote_base::RemoteReceiveData data) override;
 
-  void transmit_state() override;
-  void set_model(MitsubishiModel model) { this->model_ = model; }
-
- protected:
-  MitsubishiModel model_;
-};
-
-}  // namespace mitsubishi_heavy
-}  // namespace esphome
+        };
+    } // namespace mhi_zj
+} // namespace esphome
