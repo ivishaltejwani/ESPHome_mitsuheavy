@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "ir_sender_esphome.h"
 #include <MitsubishiHeavyHeatpumpIR.h>
+#include <algorithm>  // For std::clamp
 
 namespace esphome {
 namespace mitsubishi_heavy {
@@ -17,7 +18,6 @@ void MitsubishiHeavyClimate::transmit_state() {
   uint8_t swingVCmd = VDIR_SWING;
   uint8_t swingHCmd = HDIR_SWING;
 
-  // ✅ Fixed: cast fan_mode properly (enum class -> value)
   if (this->fan_mode.has_value()) {
     switch (this->fan_mode.value()) {
       case climate::CLIMATE_FAN_LOW:
@@ -66,15 +66,19 @@ void MitsubishiHeavyClimate::transmit_state() {
       break;
   }
 
-  // ✅ Fixed: cast all to float to resolve type mismatch
-  float clamped_temp = clamp(this->target_temperature, float(MITSUBISHI_TEMP_MIN), float(MITSUBISHI_TEMP_MAX));
+  float clamped_temp = std::clamp(this->target_temperature,
+                                  static_cast<float>(MITSUBISHI_TEMP_MIN),
+                                  static_cast<float>(MITSUBISHI_TEMP_MAX));
   temperatureCmd = static_cast<uint8_t>(clamped_temp);
 
-  // ✅ Fixed: safe cast to expected type
-  auto *tx = static_cast<remote_transmitter::RemoteTransmitterComponent *>(this->transmitter_);
+  auto *tx = dynamic_cast<remote_transmitter::RemoteTransmitterComponent *>(this->transmitter_);
+  if (tx == nullptr) {
+    ESP_LOGE(TAG, "Invalid transmitter type");
+    return;
+  }
   IRSenderESPHome espSender(0, tx);
 
-  MitsubishiHeavyHeatpumpIR *heatpumpIR = nullptr;
+  MitsubishiHeavyHeatpumpIR *heatpumpIR;
   switch (model_) {
     case MODEL_ZJ:
       heatpumpIR = new MitsubishiHeavyZJHeatpumpIR();
@@ -90,18 +94,10 @@ void MitsubishiHeavyClimate::transmit_state() {
       return;
   }
 
-  heatpumpIR->send(
-    espSender,
-    powerModeCmd,
-    operatingModeCmd,
-    fanSpeedCmd,
-    temperatureCmd,
-    swingVCmd,
-    swingHCmd,
-    false, false, false
-  );
+  heatpumpIR->send(espSender, powerModeCmd, operatingModeCmd, fanSpeedCmd, temperatureCmd,
+                   swingVCmd, swingHCmd, false, false, false);
 
-  delete heatpumpIR;  // ✅ Optional: cleanup to avoid leak
+  delete heatpumpIR;  // Clean up heap memory to avoid leaks
 }
 
 }  // namespace mitsubishi_heavy
