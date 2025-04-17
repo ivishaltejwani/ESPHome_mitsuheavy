@@ -17,23 +17,28 @@ void MitsubishiHeavyClimate::transmit_state() {
   uint8_t swingVCmd = VDIR_SWING;
   uint8_t swingHCmd = HDIR_SWING;
 
-  switch (this->fan_mode) {
-    case climate::CLIMATE_FAN_LOW:
-      fanSpeedCmd = FAN_2;
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      fanSpeedCmd = FAN_3;
-      break;
-    case climate::CLIMATE_FAN_HIGH:
-      fanSpeedCmd = FAN_4;
-      break;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      fanSpeedCmd = FAN_AUTO;
-      break;
+  // ✅ Fixed: cast fan_mode properly (enum class -> value)
+  if (this->fan_mode.has_value()) {
+    switch (this->fan_mode.value()) {
+      case climate::CLIMATE_FAN_LOW:
+        fanSpeedCmd = FAN_2;
+        break;
+      case climate::CLIMATE_FAN_MEDIUM:
+        fanSpeedCmd = FAN_3;
+        break;
+      case climate::CLIMATE_FAN_HIGH:
+        fanSpeedCmd = FAN_4;
+        break;
+      case climate::CLIMATE_FAN_AUTO:
+      default:
+        fanSpeedCmd = FAN_AUTO;
+        break;
+    }
+  } else {
+    fanSpeedCmd = FAN_AUTO;
   }
 
- switch (this->mode) {
+  switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
       powerModeCmd = POWER_ON;
       operatingModeCmd = MODE_COOL;
@@ -50,7 +55,7 @@ void MitsubishiHeavyClimate::transmit_state() {
       powerModeCmd = POWER_ON;
       operatingModeCmd = MODE_FAN;
       break;
-    case climate::CLIMATE_ACTION_DRYING:
+    case climate::CLIMATE_MODE_DRY:
       powerModeCmd = POWER_ON;
       operatingModeCmd = MODE_DRY;
       break;
@@ -61,13 +66,16 @@ void MitsubishiHeavyClimate::transmit_state() {
       break;
   }
 
-  temperatureCmd = (uint8_t) clamp(this->target_temperature, MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX);
+  // ✅ Fixed: cast all to float to resolve type mismatch
+  float clamped_temp = clamp(this->target_temperature, float(MITSUBISHI_TEMP_MIN), float(MITSUBISHI_TEMP_MAX));
+  temperatureCmd = static_cast<uint8_t>(clamped_temp);
 
-  // TODO: Are the following memory leaks?
-  IRSenderESPHome espSender(0, this->transmitter_);
+  // ✅ Fixed: safe cast to expected type
+  auto *tx = static_cast<remote_transmitter::RemoteTransmitterComponent *>(this->transmitter_);
+  IRSenderESPHome espSender(0, tx);
 
-  MitsubishiHeavyHeatpumpIR *heatpumpIR;
-  switch(model_) {
+  MitsubishiHeavyHeatpumpIR *heatpumpIR = nullptr;
+  switch (model_) {
     case MODEL_ZJ:
       heatpumpIR = new MitsubishiHeavyZJHeatpumpIR();
       break;
@@ -81,8 +89,20 @@ void MitsubishiHeavyClimate::transmit_state() {
       ESP_LOGE(TAG, "Invalid model");
       return;
   }
-  heatpumpIR->send(espSender, powerModeCmd, operatingModeCmd, fanSpeedCmd, temperatureCmd, swingVCmd, swingHCmd, false, false, false);
+
+  heatpumpIR->send(
+    espSender,
+    powerModeCmd,
+    operatingModeCmd,
+    fanSpeedCmd,
+    temperatureCmd,
+    swingVCmd,
+    swingHCmd,
+    false, false, false
+  );
+
+  delete heatpumpIR;  // ✅ Optional: cleanup to avoid leak
 }
 
-}  // namespace mitsubishi
+}  // namespace mitsubishi_heavy
 }  // namespace esphome
