@@ -1,6 +1,11 @@
 #pragma once
 
-#include "esphome/components/climate_ir/climate_ir.h"
+#include "esphome/components/climate/climate.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/core/gpio.h"
+#include "IRremoteESP8266.h"
+#include "IRsend.h"
+#include "ir_MitsubishiHeavy.h"
 
 namespace esphome {
 namespace mitsubishi_heavy {
